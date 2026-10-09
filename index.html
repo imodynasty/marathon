@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#18111f" />
+    <title>Poop Sprint</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='54' font-size='56'%3E💩%3C/text%3E%3C/svg%3E" />
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100svh; overflow: hidden; background: radial-gradient(circle at 50% 0%, #432653 0%, #25172e 44%, #130d18 100%); color: #fff8ef; font-family: Arial, Helvetica, sans-serif; }
+      .game { min-height: 100svh; display: grid; place-items: center; padding: 1.25rem; }
+      .panel { width: min(100%, 1050px); }
+      h1 { margin: 0; text-align: center; font-size: clamp(2.1rem, 6vw, 4.8rem); line-height: .95; letter-spacing: -.06em; text-transform: uppercase; text-shadow: 0 5px 0 #e93c82; }
+      .instruction { text-align: center; margin: .9rem 0 1.5rem; font-size: clamp(1rem, 2vw, 1.25rem); font-weight: 700; color: #ffd7ea; }
+      #track { position: relative; height: min(56vh, 510px); min-height: 380px; border: 7px solid #fff8ef; border-radius: 26px; overflow: hidden; touch-action: none; user-select: none; background: repeating-linear-gradient(0deg, transparent 0 72px, rgba(255,255,255,.12) 73px 75px), linear-gradient(125deg, #d83f7e, #9f3273 54%, #692a71); box-shadow: 0 16px 0 #0c0810, inset 0 0 0 5px rgba(0,0,0,.12); }
+      .line { position: absolute; top: 0; bottom: 0; width: 26px; display: grid; place-items: center; font-size: .75rem; font-weight: 900; letter-spacing: .12em; color: #231329; writing-mode: vertical-rl; text-orientation: mixed; z-index: 2; }
+      .start { left: 9%; background: #fff8ef; }
+      .finish { right: 9%; background: repeating-conic-gradient(#fff8ef 0 25%, #1d1524 0 50%) 50% / 26px 26px; color: #fff8ef; text-shadow: 0 1px #000; }
+      #runner { position: absolute; left: 11%; bottom: 7%; height: min(66%, 340px); max-width: 31vw; z-index: 4; cursor: grab; filter: drop-shadow(5px 7px 0 rgba(32,12,34,.45)); transition: transform .1s ease; -webkit-user-drag: none; }
+      #runner.dragging { cursor: grabbing; transform: scale(1.035); }
+      .poo { position: absolute; z-index: 3; pointer-events: none; font-size: clamp(1.8rem, 4vw, 3.2rem); animation: pop .75s cubic-bezier(.14,.75,.22,1) both; filter: drop-shadow(2px 3px 0 rgba(42,17,45,.24)); }
+      @keyframes pop { 0% { transform: translate(-50%, -50%) scale(.1) rotate(-30deg); opacity: 0; } 40% { opacity: 1; } 100% { transform: translate(-50%, -95%) scale(1.1) rotate(16deg); opacity: 0; } }
+      #message { position: absolute; left: 50%; top: 8%; transform: translateX(-50%); z-index: 6; width: max-content; max-width: 78%; padding: .55rem .9rem; border-radius: 999px; background: #fff8ef; color: #471c4c; font-weight: 900; text-align: center; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; }
+      #message.show { opacity: 1; transform: translateX(-50%) translateY(2px); }
+      .progress { display: flex; justify-content: center; gap: .65rem; align-items: center; margin-top: 1rem; font-weight: 800; color: #ffe7f2; }
+      .meter { width: min(50vw, 320px); height: 13px; border: 2px solid #fff8ef; border-radius: 99px; overflow: hidden; }
+      #fill { height: 100%; width: 0%; background: #ffe25b; transition: width .08s linear; }
+      @media (max-width: 560px) { #track { min-height: 440px; } .line { width: 20px; font-size: .63rem; } .start { left: 6%; } .finish { right: 6%; } #runner { left: 8%; max-width: 48vw; height: 57%; } }
+    </style>
+  </head>
+  <body>
+    <main class="game">
+      <section class="panel" aria-label="Poop Sprint game">
+        <h1>Poop Sprint</h1>
+        <p class="instruction">Drag the runner to the finish. The harder you run, the more poo flies.</p>
+        <div id="track" role="application" aria-label="Drag the runner from the start line to the finish line">
+          <div class="line start">START</div>
+          <div class="line finish">FINISH</div>
+          <div id="message" aria-live="polite">GO!</div>
+          <img id="runner" src="runner.png" alt="Runner ready to sprint" draggable="false" />
+        </div>
+        <div class="progress"><span>RUN</span><div class="meter" aria-hidden="true"><div id="fill"></div></div><span id="percent">0%</span></div>
+      </section>
+    </main>
+    <script>
+      const track = document.querySelector('#track');
+      const runner = document.querySelector('#runner');
+      const fill = document.querySelector('#fill');
+      const percent = document.querySelector('#percent');
+      const message = document.querySelector('#message');
+      let dragging = false, startX = 0, startLeft = 0, left = 0, lastBurst = 0, won = false;
+      const boundaries = () => ({ min: track.clientWidth * .11, max: track.clientWidth * .79 });
+      const place = (x) => {
+        const b = boundaries();
+        left = Math.max(b.min, Math.min(b.max, x));
+        runner.style.left = left + 'px';
+        const p = Math.round(((left - b.min) / (b.max - b.min)) * 100);
+        fill.style.width = p + '%'; percent.textContent = p + '%';
+        if (p >= 99 && !won) { won = true; message.textContent = 'YOU MADE IT 💩'; message.classList.add('show'); for (let i = 0; i < 32; i++) setTimeout(burst, i * 35); }
+        if (p < 97) { won = false; message.classList.remove('show'); }
+      };
+      const burst = () => {
+        const poo = document.createElement('span'); poo.className = 'poo'; poo.textContent = '💩';
+        poo.style.left = (left + (Math.random() - .5) * 160) + 'px';
+        poo.style.top = (track.clientHeight * (.28 + Math.random() * .55)) + 'px';
+        poo.style.fontSize = (28 + Math.random() * 36) + 'px'; track.appendChild(poo);
+        poo.addEventListener('animationend', () => poo.remove());
+      };
+      const start = (e) => { dragging = true; runner.classList.add('dragging'); startX = e.clientX; startLeft = left || runner.offsetLeft; runner.setPointerCapture?.(e.pointerId); };
+      const move = (e) => { if (!dragging) return; const next = startLeft + e.clientX - startX; const delta = next - left; place(next); if (Math.abs(delta) > 4 && performance.now() - lastBurst > 75) { burst(); lastBurst = performance.now(); } };
+      const end = () => { dragging = false; runner.classList.remove('dragging'); };
+      runner.addEventListener('pointerdown', start); runner.addEventListener('pointermove', move); runner.addEventListener('pointerup', end); runner.addEventListener('pointercancel', end);
+      window.addEventListener('resize', () => place(left || boundaries().min));
+      requestAnimationFrame(() => place(boundaries().min));
+    </script>
+  </body>
+</html>
